@@ -16,8 +16,6 @@
 // and that you want to learn Vulkan. This means that for example it won't go into details about
 // what a vertex or a shader is.
 
-use cgmath::{InnerSpace, Rad, Vector3};
-
 use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract};
 use vulkano::image::SwapchainImage;
@@ -33,7 +31,6 @@ mod init;
 mod presenter;
 mod renderer;
 mod shaders;
-mod util;
 
 use presenter::Presenter;
 use renderer::Renderer;
