@@ -1,0 +1,28 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, r16ui) uniform uimage2D world_target;
+layout(set = 0, binding = 1, rgba8_snorm) uniform writeonly image2D final_image;
+
+const uint WORLD_SIZE = 256;
+const uint ZOOM = 2;
+
+uint sampl(int x, int y) {
+    return imageLoad(world_target, ivec2(
+        (x + WORLD_SIZE) % WORLD_SIZE,
+        (y + WORLD_SIZE) % WORLD_SIZE
+    )).r;
+}
+
+void main() {
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 world_pos = pos / ivec2(ZOOM);
+
+    vec3 color = vec3(0.0);
+    if (imageLoad(world_target, world_pos).r == 1) {
+        color = vec3(1.0);
+    }
+
+    imageStore(final_image, pos, vec4(color, 1.0));
+}

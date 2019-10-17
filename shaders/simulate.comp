@@ -1,0 +1,41 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, r16ui) uniform uimage2D world_source;
+layout(set = 0, binding = 1, r16ui) uniform uimage2D world_target;
+
+const uint WORLD_SIZE = 256;
+
+uint sampl(int x, int y) {
+    return imageLoad(world_source, ivec2(
+        (x + WORLD_SIZE) % WORLD_SIZE,
+        (y + WORLD_SIZE) % WORLD_SIZE
+    )).r;
+}
+
+void main() {
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    uint neighborhood = 0;
+    neighborhood += sampl(pos.x - 1, pos.y - 1);
+    neighborhood += sampl(pos.x - 1, pos.y);
+    neighborhood += sampl(pos.x - 1, pos.y + 1);
+    neighborhood += sampl(pos.x, pos.y - 1);
+    neighborhood += sampl(pos.x, pos.y + 1);
+    neighborhood += sampl(pos.x + 1, pos.y - 1);
+    neighborhood += sampl(pos.x + 1, pos.y);
+    neighborhood += sampl(pos.x + 1, pos.y + 1);
+
+    uint result = 0;
+    if (imageLoad(world_source, pos).r == 0) {
+        if (neighborhood == 3) {
+            result = 1;
+        }
+    } else {
+        if (neighborhood == 2 || neighborhood == 3) {
+            result = 1;
+        }
+    }
+
+    imageStore(world_target, pos, ivec4(result));
+}
