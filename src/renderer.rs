@@ -23,6 +23,7 @@ pub struct Renderer {
     target_width: u32,
     target_height: u32,
     reset_requested: bool,
+    rate: u32,
 
     world_buffer_source: Arc<GenericImage>,
     world_buffer_target: Arc<GenericImage>,
@@ -133,6 +134,7 @@ impl RenderBuilder {
             target_width,
             target_height,
             reset_requested: true,
+            rate: 1,
 
             randomize_pipeline,
             randomize_descriptors,
@@ -183,6 +185,21 @@ impl Renderer {
         } else if self.finalize_push_data.zoom < 1 {
             self.finalize_push_data.zoom = 1;
         }
+        println!("{}x zoom", self.finalize_push_data.zoom);
+    }
+
+    pub fn offset_rate(&mut self, increase: bool) {
+        if increase {
+            self.rate *= 2;
+        } else if self.rate > 1 {
+            self.rate /= 2;
+        }
+        println!("{} generations per frame", self.rate);
+    }
+
+    pub fn reset_world(&mut self) {
+        self.reset_requested = true;
+        println!("reset world");
     }
 
     pub fn add_render_commands(
@@ -200,27 +217,30 @@ impl Renderer {
                 .unwrap();
             self.reset_requested = false;
         }
+        for _ in 0..self.rate {
+            add_to = add_to
+                .dispatch(
+                    [WORLD_SIZE / 8, WORLD_SIZE / 8, 1],
+                    self.simulate_pipeline.clone(),
+                    self.simulate_descriptors.clone(),
+                    (),
+                )
+                .unwrap()
+                .copy_image(
+                    self.world_buffer_target.clone(),
+                    [0, 0, 0],
+                    0,
+                    0,
+                    self.world_buffer_source.clone(),
+                    [0, 0, 0],
+                    0,
+                    0,
+                    [WORLD_SIZE, WORLD_SIZE, 1],
+                    1,
+                )
+                .unwrap()
+        }
         add_to
-            .dispatch(
-                [WORLD_SIZE / 8, WORLD_SIZE / 8, 1],
-                self.simulate_pipeline.clone(),
-                self.simulate_descriptors.clone(),
-                (),
-            )
-            .unwrap()
-            .copy_image(
-                self.world_buffer_target.clone(),
-                [0, 0, 0],
-                0,
-                0,
-                self.world_buffer_source.clone(),
-                [0, 0, 0],
-                0,
-                0,
-                [WORLD_SIZE, WORLD_SIZE, 1],
-                1,
-            )
-            .unwrap()
             .dispatch(
                 [self.target_width / 8, self.target_height / 8, 1],
                 self.finalize_pipeline.clone(),

@@ -10,8 +10,36 @@ float rand(vec2 co){
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
+float lerp(float a, float b, float amount) {
+    return b * amount + a * (1.0 - amount);
+}
+
+float noise_layer(vec2 coord, float size, float seed) {
+    vec2 corner = coord - mod(coord, size);
+    vec2 fractional = mod(coord, size) / size;
+    float tl = rand(corner + seed);
+    float tr = rand(corner + seed + vec2(size, 0));
+    float bl = rand(corner + seed + vec2(0, size));
+    float br = rand(corner + seed + vec2(size, size));
+
+    float t = lerp(tl, tr, fractional.x);
+    float b = lerp(bl, br, fractional.x);
+
+    return lerp(t, b, fractional.y);
+}
+
+float noise(vec2 coord) {
+    return 
+        noise_layer(coord, 128.0, 0.2)
+        * (noise_layer(coord, 32.0, 0.1) * 0.5 + 0.5)
+    ;
+}
+
 void main() {
     ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
-    uint value = uint(rand(vec2(pos)) * 2.0);
+    uint value = 0;
+    if (rand(vec2(pos)) < (noise(pos) * 0.8 - 0.3)) {
+        value = 1;
+    }
     imageStore(world_source, pos, ivec4(value));
 }

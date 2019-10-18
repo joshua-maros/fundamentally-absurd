@@ -186,6 +186,9 @@ fn main() {
                 VirtualKeyCode::Escape => done = true,
                 VirtualKeyCode::Equals => renderer.offset_zoom(true),
                 VirtualKeyCode::Subtract => renderer.offset_zoom(false),
+                VirtualKeyCode::Comma => renderer.offset_rate(false),
+                VirtualKeyCode::Period => renderer.offset_rate(true),
+                VirtualKeyCode::R => renderer.reset_world(),
                 _ => (),
             },
             Event::WindowEvent {
@@ -214,11 +217,6 @@ fn main() {
         }
         total_frame_time += frame_start.elapsed().as_millis();
         total_frames += 1;
-        println!(
-            "Frame took {}ms, average {} per frame.",
-            frame_start.elapsed().as_millis(),
-            total_frame_time / (total_frames)
-        );
     }
 }
 
