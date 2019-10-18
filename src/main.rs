@@ -165,6 +165,12 @@ fn main() {
                 ..
             } => done = true,
             Event::WindowEvent {
+                event: WindowEvent::CursorMoved { position, .. },
+                ..
+            } => {
+                renderer.set_offset(position.x as f32 / 512.0, 1.0 - position.y as f32 / 512.0);
+            }
+            Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
                         input:
@@ -178,6 +184,8 @@ fn main() {
                 ..
             } => match code {
                 VirtualKeyCode::Escape => done = true,
+                VirtualKeyCode::Equals => renderer.offset_zoom(true),
+                VirtualKeyCode::Subtract => renderer.offset_zoom(false),
                 _ => (),
             },
             Event::WindowEvent {
@@ -204,7 +212,6 @@ fn main() {
         if done {
             return;
         }
-        let elapsed = frame_start.elapsed().as_millis() as f32 / 1000.0;
         total_frame_time += frame_start.elapsed().as_millis();
         total_frames += 1;
         println!(

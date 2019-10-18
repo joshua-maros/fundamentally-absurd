@@ -17,6 +17,7 @@ mod finalize {
         path: "shaders/finalize.comp"
     }
 }
+pub use finalize::ty::PushData as FinalizePushData;
 pub use finalize::Layout as FinalizeShaderLayout;
 pub use finalize::Shader as FinalizeShader;
 

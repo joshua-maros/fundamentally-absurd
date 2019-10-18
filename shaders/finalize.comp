@@ -5,8 +5,12 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout(set = 0, binding = 0, r16ui) uniform uimage2D world_target;
 layout(set = 0, binding = 1, rgba8_snorm) uniform writeonly image2D final_image;
 
-const uint WORLD_SIZE = 256;
-const uint ZOOM = 2;
+layout(push_constant) uniform PushData {
+    ivec2 offset;
+    uint zoom;
+} push_data;
+
+const uint WORLD_SIZE = 1024;
 
 uint sampl(int x, int y) {
     return imageLoad(world_target, ivec2(
@@ -17,7 +21,7 @@ uint sampl(int x, int y) {
 
 void main() {
     ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 world_pos = pos / ivec2(ZOOM);
+    ivec2 world_pos = (pos / ivec2(push_data.zoom) + push_data.offset) % ivec2(WORLD_SIZE);
 
     vec3 color = vec3(0.0);
     if (imageLoad(world_target, world_pos).r == 1) {

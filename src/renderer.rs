@@ -1,4 +1,3 @@
-use vulkano::buffer::CpuAccessibleBuffer;
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::descriptor::descriptor_set::{DescriptorSet, PersistentDescriptorSet};
 use vulkano::descriptor::pipeline_layout::PipelineLayout;
@@ -9,7 +8,7 @@ use vulkano::pipeline::ComputePipeline;
 
 use std::sync::Arc;
 
-use crate::shaders::{self, FinalizeShaderLayout, RandomizeShaderLayout, SimulateShaderLayout};
+use crate::shaders::{self, FinalizeShaderLayout, RandomizeShaderLayout, SimulateShaderLayout, FinalizePushData};
 
 type RandomizePipeline = ComputePipeline<PipelineLayout<RandomizeShaderLayout>>;
 type SimulatePipeline = ComputePipeline<PipelineLayout<SimulateShaderLayout>>;
@@ -18,12 +17,12 @@ type FinalizePipeline = ComputePipeline<PipelineLayout<FinalizeShaderLayout>>;
 type GenericImage = StorageImage<Format>;
 type GenericDescriptorSet = dyn DescriptorSet + Sync + Send;
 
-const WORLD_SIZE: u32 = 256;
+const WORLD_SIZE: u32 = 1024;
 
 pub struct Renderer {
     target_width: u32,
     target_height: u32,
-    image_update_requested: bool,
+    reset_requested: bool,
 
     world_buffer_source: Arc<GenericImage>,
     world_buffer_target: Arc<GenericImage>,
@@ -34,6 +33,7 @@ pub struct Renderer {
     simulate_pipeline: Arc<SimulatePipeline>,
     simulate_descriptors: Arc<GenericDescriptorSet>,
 
+    finalize_push_data: FinalizePushData,
     finalize_pipeline: Arc<FinalizePipeline>,
     finalize_descriptors: Arc<GenericDescriptorSet>,
 }
@@ -132,7 +132,7 @@ impl RenderBuilder {
         Renderer {
             target_width,
             target_height,
-            image_update_requested: true,
+            reset_requested: true,
 
             randomize_pipeline,
             randomize_descriptors,
@@ -142,7 +142,11 @@ impl RenderBuilder {
 
             simulate_pipeline,
             simulate_descriptors,
-
+            
+            finalize_push_data: FinalizePushData {
+                offset: [0, 0],
+                zoom: 1,
+            },
             finalize_pipeline,
             finalize_descriptors,
         }
@@ -163,11 +167,29 @@ impl Renderer {
         .build()
     }
 
+    pub fn set_offset(&mut self, x: f32, y: f32) {
+        self.finalize_push_data.offset[0] = (x * WORLD_SIZE as f32) as i32;
+        self.finalize_push_data.offset[1] = (y * WORLD_SIZE as f32) as i32;
+    }
+
+    pub fn offset_zoom(&mut self, increment: bool) {
+        if increment {
+            self.finalize_push_data.zoom += 1;
+        } else {
+            self.finalize_push_data.zoom -= 1;
+        }
+        if self.finalize_push_data.zoom > 4 {
+            self.finalize_push_data.zoom = 4;
+        } else if self.finalize_push_data.zoom < 1 {
+            self.finalize_push_data.zoom = 1;
+        }
+    }
+
     pub fn add_render_commands(
         &mut self,
         mut add_to: AutoCommandBufferBuilder,
     ) -> AutoCommandBufferBuilder {
-        if self.image_update_requested {
+        if self.reset_requested {
             add_to = add_to
                 .dispatch(
                     [WORLD_SIZE / 8, WORLD_SIZE / 8, 1],
@@ -176,7 +198,7 @@ impl Renderer {
                     (),
                 )
                 .unwrap();
-            self.image_update_requested = false;
+            self.reset_requested = false;
         }
         add_to
             .dispatch(
@@ -203,7 +225,7 @@ impl Renderer {
                 [self.target_width / 8, self.target_height / 8, 1],
                 self.finalize_pipeline.clone(),
                 self.finalize_descriptors.clone(),
-                (),
+                self.finalize_push_data.clone(),
             )
             .unwrap()
     }

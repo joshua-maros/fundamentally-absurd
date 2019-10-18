@@ -4,7 +4,7 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(set = 0, binding = 0, r16ui) uniform uimage2D world_source;
 
-const uint WORLD_SIZE = 256;
+const uint WORLD_SIZE = 1024;
 
 float rand(vec2 co){
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
