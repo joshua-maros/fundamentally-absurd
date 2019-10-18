@@ -190,9 +190,17 @@ impl Renderer {
 
     pub fn offset_rate(&mut self, increase: bool) {
         if increase {
-            self.rate *= 2;
-        } else if self.rate > 1 {
-            self.rate /= 2;
+            if self.rate == 0 {
+                self.rate = 1;
+            } else {
+                self.rate *= 2;
+            }
+        } else {
+            if self.rate > 1 {
+                self.rate /= 2;
+            } else {
+                self.rate = 0;
+            }
         }
         println!("{} generations per frame", self.rate);
     }
@@ -241,6 +249,19 @@ impl Renderer {
                 .unwrap()
         }
         add_to
+                .copy_image(
+                    self.world_buffer_target.clone(),
+                    [0, 0, 0],
+                    0,
+                    0,
+                    self.world_buffer_source.clone(),
+                    [0, 0, 0],
+                    0,
+                    0,
+                    [WORLD_SIZE, WORLD_SIZE, 1],
+                    1,
+                )
+                .unwrap()
             .dispatch(
                 [self.target_width / 8, self.target_height / 8, 1],
                 self.finalize_pipeline.clone(),

@@ -39,7 +39,7 @@ void main() {
     ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
     uint value = 0;
     if (rand(vec2(pos)) < (noise(pos) * 0.8 - 0.3)) {
-        value = 1;
+        value = uint(rand(vec2(pos) + vec2(0.4)) * 10);
     }
     imageStore(world_source, pos, ivec4(value));
 }
