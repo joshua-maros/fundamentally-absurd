@@ -249,7 +249,9 @@ impl Renderer {
         &mut self,
         mut add_to: AutoCommandBufferBuilder,
     ) -> AutoCommandBufferBuilder {
-        add_to = add_to.copy_buffer_to_image(self.parameter_buffer.clone(), self.parameter_image.clone()).unwrap();
+        add_to = add_to
+            .copy_buffer_to_image(self.parameter_buffer.clone(), self.parameter_image.clone())
+            .unwrap();
         if self.reset_requested {
             add_to = add_to
                 .dispatch(
