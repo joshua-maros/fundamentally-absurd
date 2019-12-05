@@ -1,3 +1,4 @@
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::descriptor::descriptor_set::{DescriptorSet, PersistentDescriptorSet};
 use vulkano::descriptor::pipeline_layout::PipelineLayout;
@@ -8,7 +9,9 @@ use vulkano::pipeline::ComputePipeline;
 
 use std::sync::Arc;
 
-use crate::shaders::{self, FinalizeShaderLayout, RandomizeShaderLayout, SimulateShaderLayout, FinalizePushData};
+use crate::shaders::{
+    self, FinalizePushData, FinalizeShaderLayout, RandomizeShaderLayout, SimulateShaderLayout,
+};
 
 type RandomizePipeline = ComputePipeline<PipelineLayout<RandomizeShaderLayout>>;
 type SimulatePipeline = ComputePipeline<PipelineLayout<SimulateShaderLayout>>;
@@ -18,6 +21,7 @@ type GenericImage = StorageImage<Format>;
 type GenericDescriptorSet = dyn DescriptorSet + Sync + Send;
 
 const WORLD_SIZE: u32 = 1024;
+const PARAMETER_SPACE: u32 = 128;
 
 pub struct Renderer {
     target_width: u32,
@@ -27,6 +31,9 @@ pub struct Renderer {
 
     world_buffer_source: Arc<GenericImage>,
     world_buffer_target: Arc<GenericImage>,
+
+    parameter_buffer: Arc<CpuAccessibleBuffer<[u16]>>,
+    parameter_image: Arc<GenericImage>,
 
     randomize_pipeline: Arc<RandomizePipeline>,
     randomize_descriptors: Arc<GenericDescriptorSet>,
@@ -74,6 +81,22 @@ impl RenderBuilder {
         )
         .unwrap();
 
+        let parameter_buffer = CpuAccessibleBuffer::from_iter(
+            self.device.clone(),
+            BufferUsage::all(),
+            (0..PARAMETER_SPACE).map(|_| 0u16),
+        )
+        .unwrap();
+        let parameter_image = StorageImage::new(
+            self.device.clone(),
+            Dimensions::Dim1d {
+                width: PARAMETER_SPACE,
+            },
+            Format::R16Uint,
+            Some(self.queue.family()),
+        )
+        .unwrap();
+
         let randomize_shader = shaders::load_randomize_shader(self.device.clone());
         let simulate_shader = shaders::load_simulate_shader(self.device.clone());
         let finalize_shader = shaders::load_finalize_shader(self.device.clone());
@@ -108,6 +131,8 @@ impl RenderBuilder {
                 .unwrap()
                 .add_image(world_buffer_target.clone())
                 .unwrap()
+                .add_image(parameter_image.clone())
+                .unwrap()
                 .build()
                 .unwrap(),
         );
@@ -139,12 +164,15 @@ impl RenderBuilder {
             randomize_pipeline,
             randomize_descriptors,
 
+            parameter_buffer,
+            parameter_image,
+
             world_buffer_source,
             world_buffer_target,
 
             simulate_pipeline,
             simulate_descriptors,
-            
+
             finalize_push_data: FinalizePushData {
                 offset: [0, 0],
                 zoom: 1,
@@ -210,10 +238,18 @@ impl Renderer {
         println!("reset world");
     }
 
+    pub fn set_parameters(&mut self, parameters: &Vec<u16>) {
+        let mut destination = self.parameter_buffer.write().unwrap();
+        for (index, parameter) in parameters.iter().enumerate() {
+            destination[index] = *parameter;
+        }
+    }
+
     pub fn add_render_commands(
         &mut self,
         mut add_to: AutoCommandBufferBuilder,
     ) -> AutoCommandBufferBuilder {
+        add_to = add_to.copy_buffer_to_image(self.parameter_buffer.clone(), self.parameter_image.clone()).unwrap();
         if self.reset_requested {
             add_to = add_to
                 .dispatch(
@@ -249,19 +285,19 @@ impl Renderer {
                 .unwrap()
         }
         add_to
-                .copy_image(
-                    self.world_buffer_target.clone(),
-                    [0, 0, 0],
-                    0,
-                    0,
-                    self.world_buffer_source.clone(),
-                    [0, 0, 0],
-                    0,
-                    0,
-                    [WORLD_SIZE, WORLD_SIZE, 1],
-                    1,
-                )
-                .unwrap()
+            .copy_image(
+                self.world_buffer_target.clone(),
+                [0, 0, 0],
+                0,
+                0,
+                self.world_buffer_source.clone(),
+                [0, 0, 0],
+                0,
+                0,
+                [WORLD_SIZE, WORLD_SIZE, 1],
+                1,
+            )
+            .unwrap()
             .dispatch(
                 [self.target_width / 8, self.target_height / 8, 1],
                 self.finalize_pipeline.clone(),

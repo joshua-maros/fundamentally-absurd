@@ -57,6 +57,7 @@ fn main() {
         queue.clone(),
         presenter.get_presented_image(),
     );
+    renderer.set_parameters(&vec![2, 0, 1]);
 
     // Dynamic viewports allow us to recreate just the viewport when the window is resized
     // Otherwise we would have to recreate the whole pipeline.
@@ -134,20 +135,6 @@ fn main() {
             .then_swapchain_present(queue.clone(), swapchain.clone(), image_num)
             .then_signal_fence_and_flush();
 
-        match future {
-            Ok(future) => {
-                previous_frame_end = Box::new(future) as Box<_>;
-            }
-            Err(FlushError::OutOfDate) => {
-                recreate_swapchain = true;
-                previous_frame_end = Box::new(sync::now(device.clone())) as Box<_>;
-            }
-            Err(e) => {
-                println!("{:?}", e);
-                previous_frame_end = Box::new(sync::now(device.clone())) as Box<_>;
-            }
-        }
-
         // Note that in more complex programs it is likely that one of `acquire_next_image`,
         // `command_buffer::submit`, or `present` will block for some time. This happens when the
         // GPU's queue is full and the driver has to wait until the GPU finished some work.
@@ -215,6 +202,20 @@ fn main() {
         if done {
             return;
         }
+
+        match future {
+            Ok(future) => {
+                future.wait(None).unwrap();
+            }
+            Err(FlushError::OutOfDate) => {
+                recreate_swapchain = true;
+            }
+            Err(e) => {
+                println!("{:?}", e);
+            }
+        }
+        previous_frame_end = Box::new(sync::now(device.clone())) as Box<_>;
+
         total_frame_time += frame_start.elapsed().as_millis();
         total_frames += 1;
     }
