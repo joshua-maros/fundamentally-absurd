@@ -57,7 +57,9 @@ fn main() {
         queue.clone(),
         presenter.get_presented_image(),
     );
-    renderer.set_parameters(&vec![2, 0, 1]);
+    let mut args: Vec<String> = std::env::args().collect();
+    args.remove(0);
+    renderer.set_parameters(&args.iter().map(|arg| arg.parse().unwrap()).collect());
 
     // Dynamic viewports allow us to recreate just the viewport when the window is resized
     // Otherwise we would have to recreate the whole pipeline.
