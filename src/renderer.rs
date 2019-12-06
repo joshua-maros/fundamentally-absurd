@@ -28,6 +28,7 @@ pub struct Renderer {
     target_height: u32,
     reset_requested: bool,
     rate: u32,
+    frame_step: u32,
 
     world_buffer_source: Arc<GenericImage>,
     world_buffer_target: Arc<GenericImage>,
@@ -160,6 +161,7 @@ impl RenderBuilder {
             target_height,
             reset_requested: true,
             rate: 1,
+            frame_step: 0,
 
             randomize_pipeline,
             randomize_descriptors,
@@ -233,15 +235,24 @@ impl Renderer {
         println!("{} generations per frame", self.rate);
     }
 
+    pub fn pause(&mut self) {
+        self.rate = 0;
+    }
+
+    pub fn skip_frames(&mut self, num_frames: u32) {
+        self.frame_step += num_frames;
+    }
+
     pub fn reset_world(&mut self) {
         self.reset_requested = true;
+        self.frame_step += 1;
         println!("reset world");
     }
 
-    pub fn set_parameters(&mut self, parameters: &Vec<u16>) {
+    pub fn set_parameters(&mut self, parameters: &Vec<i16>) {
         let mut destination = self.parameter_buffer.write().unwrap();
         for (index, parameter) in parameters.iter().enumerate() {
-            destination[index] = *parameter;
+            destination[index] = *parameter as u16;
         }
     }
 
@@ -263,7 +274,7 @@ impl Renderer {
                 .unwrap();
             self.reset_requested = false;
         }
-        for _ in 0..self.rate {
+        for _ in 0..self.rate+self.frame_step {
             add_to = add_to
                 .dispatch(
                     [WORLD_SIZE / 8, WORLD_SIZE / 8, 1],
@@ -286,6 +297,7 @@ impl Renderer {
                 )
                 .unwrap()
         }
+        self.frame_step = 0;
         add_to
             .copy_image(
                 self.world_buffer_target.clone(),

@@ -35,7 +35,8 @@ fn main() {
     );
     let mut args: Vec<String> = std::env::args().collect();
     args.remove(0);
-    renderer.set_parameters(&args.iter().map(|arg| arg.parse().unwrap()).collect());
+    let mut coefficients = args.iter().map(|arg| arg.parse().unwrap()).collect();
+    renderer.set_parameters(&coefficients);
 
     let mut dispatcher = DispatchManager::new(
         device, 
@@ -86,6 +87,42 @@ fn main() {
                 VirtualKeyCode::Comma => renderer.offset_rate(false),
                 VirtualKeyCode::Period => renderer.offset_rate(true),
                 VirtualKeyCode::R => renderer.reset_world(),
+                VirtualKeyCode::F => { 
+                    renderer.skip_frames(1);
+                    renderer.pause();
+                }
+                VirtualKeyCode::Space => {
+                    let divisor = coefficients[0];
+                    coefficients[divisor as usize] += 1;
+                    for index in (1..divisor as usize).rev() {
+                        if coefficients[index + 1] >= divisor {
+                            coefficients[index + 1] = 0;
+                            coefficients[index] += 1;
+                        }
+                    }
+                    for parameter in &coefficients {
+                        print!("{} ", parameter);
+                    }
+                    println!("");
+                    renderer.set_parameters(&coefficients);
+                    renderer.reset_world();
+                }
+                VirtualKeyCode::Back => {
+                    let divisor = coefficients[0];
+                    coefficients[divisor as usize] -= 1;
+                    for index in (1..divisor as usize).rev() {
+                        if coefficients[index + 1] == -1 {
+                            coefficients[index + 1] = divisor - 1;
+                            coefficients[index] -= 1;
+                        }
+                    }
+                    for parameter in &coefficients {
+                        print!("{} ", parameter);
+                    }
+                    println!("");
+                    renderer.set_parameters(&coefficients);
+                    renderer.reset_world();
+                }
                 _ => (),
             },
             Event::WindowEvent {
