@@ -1,4 +1,4 @@
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
+use vulkano::buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer};
 use vulkano::command_buffer::AutoCommandBufferBuilder;
 use vulkano::descriptor::descriptor_set::{DescriptorSet, PersistentDescriptorSet};
 use vulkano::descriptor::pipeline_layout::PipelineLayout;
@@ -32,6 +32,7 @@ pub struct Renderer {
 
     world_buffer_source: Arc<GenericImage>,
     world_buffer_target: Arc<GenericImage>,
+    cpu_world_buffer: Arc<CpuAccessibleBuffer<[u16]>>,
 
     parameter_buffer: Arc<CpuAccessibleBuffer<[u16]>>,
     parameter_image: Arc<GenericImage>,
@@ -79,6 +80,13 @@ impl RenderBuilder {
             },
             Format::R16Uint,
             Some(self.queue.family()),
+        )
+        .unwrap();
+
+        let cpu_world_buffer = CpuAccessibleBuffer::from_iter(
+            self.device.clone(),
+            BufferUsage::all(),
+            (0..WORLD_SIZE * WORLD_SIZE).map(|_| 0u16),
         )
         .unwrap();
 
@@ -171,6 +179,7 @@ impl RenderBuilder {
 
             world_buffer_source,
             world_buffer_target,
+            cpu_world_buffer,
 
             simulate_pipeline,
             simulate_descriptors,
@@ -249,7 +258,7 @@ impl Renderer {
         println!("reset world");
     }
 
-    pub fn set_parameters(&mut self, parameters: &Vec<i16>) {
+    pub fn set_parameters(&mut self, parameters: &[i16]) {
         let mut destination = self.parameter_buffer.write().unwrap();
         for (index, parameter) in parameters.iter().enumerate() {
             destination[index] = *parameter as u16;
@@ -274,7 +283,7 @@ impl Renderer {
                 .unwrap();
             self.reset_requested = false;
         }
-        for _ in 0..self.rate+self.frame_step {
+        for _ in 0..self.rate + self.frame_step {
             add_to = add_to
                 .dispatch(
                     [WORLD_SIZE / 8, WORLD_SIZE / 8, 1],
@@ -319,5 +328,15 @@ impl Renderer {
                 self.finalize_push_data.clone(),
             )
             .unwrap()
+            .copy_image_to_buffer(
+                self.world_buffer_target.clone(),
+                self.cpu_world_buffer.clone(),
+            )
+            .unwrap()
+    }
+
+    pub fn with_cpu_world_buffer<R>(&self, visitor: impl FnOnce(&[u16]) -> R) -> R {
+        let slice = self.cpu_world_buffer.read().unwrap();
+        visitor(&slice[..])
     }
 }

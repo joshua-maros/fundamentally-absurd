@@ -33,9 +33,9 @@ float hue_part(float a) {
 
 vec3 hue(float hue_value) {
     return vec3(
+        hue_part(hue_value + 0.66),
         hue_part(hue_value + 0.33),
-        hue_part(hue_value),
-        hue_part(hue_value - 0.33)
+        hue_part(hue_value)
     );
 }
 
@@ -51,8 +51,9 @@ void main() {
         color = vec3(1.0);
     } else {
         value -= 2;
-        uint shade = value % 3;
-        value = value / 3;
+        // uint shade = value % 3;
+        // value = value / 3;
+        uint shade = 2;
         if (value == 0) {
             color = hue(0.0);
         } else if (value == 1) {

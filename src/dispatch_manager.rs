@@ -1,10 +1,13 @@
-use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
 use vulkano::device::{Device, Queue};
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract};
 use vulkano::image::SwapchainImage;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::swapchain::{self, AcquireError, Swapchain, SwapchainCreationError};
 use vulkano::sync::{FlushError, GpuFuture};
+use vulkano::{
+    command_buffer::{AutoCommandBufferBuilder, DynamicState},
+    swapchain::Surface,
+};
 
 use winit::Window;
 
@@ -41,11 +44,11 @@ fn window_size_dependent_setup(
         .collect::<Vec<_>>()
 }
 
-pub struct DispatchManager<'a> {
+pub struct DispatchManager {
     device: Arc<Device>,
     queue: Arc<Queue>,
-    presenter: &'a Presenter,
-    window: &'a Window,
+    presenter: Arc<Presenter>,
+    surface: Arc<Surface<Window>>,
     swapchain: Arc<Swapchain<Window>>,
 
     framebuffers: Vec<Arc<dyn FramebufferAbstract + Send + Sync>>,
@@ -53,15 +56,15 @@ pub struct DispatchManager<'a> {
     recreate_swapchain: bool,
 }
 
-impl<'a> DispatchManager<'a> {
-    pub fn new<'i>(
+impl DispatchManager {
+    pub fn new(
         device: Arc<Device>,
         queue: Arc<Queue>,
-        presenter: &'i Presenter,
-        window: &'i Window,
+        presenter: Arc<Presenter>,
+        surface: Arc<Surface<Window>>,
         swapchain: Arc<Swapchain<Window>>,
         swapchain_images: &Vec<Arc<SwapchainImage<Window>>>,
-    ) -> DispatchManager<'i> {
+    ) -> DispatchManager {
         // Dynamic viewports allow us to recreate just the viewport when the window is resized
         // Otherwise we would have to recreate the whole pipeline.
         let mut dynamic_state = DynamicState {
@@ -80,7 +83,7 @@ impl<'a> DispatchManager<'a> {
             device,
             queue,
             presenter,
-            window,
+            surface,
             swapchain,
 
             framebuffers,
@@ -93,10 +96,11 @@ impl<'a> DispatchManager<'a> {
     where
         F: FnOnce(AutoCommandBufferBuilder) -> AutoCommandBufferBuilder,
     {
+        let window = self.surface.window();
         if self.recreate_swapchain {
-            let dimensions = if let Some(dimensions) = self.window.get_inner_size() {
+            let dimensions = if let Some(dimensions) = window.get_inner_size() {
                 let dimensions: (u32, u32) = dimensions
-                    .to_physical(self.window.get_hidpi_factor())
+                    .to_physical(window.get_hidpi_factor())
                     .into();
                 [dimensions.0, dimensions.1]
             } else {
