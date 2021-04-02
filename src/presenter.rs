@@ -1,18 +1,21 @@
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState, SubpassContents};
 use vulkano::descriptor::descriptor_set::{DescriptorSet, PersistentDescriptorSet};
 use vulkano::descriptor::pipeline_layout::PipelineLayoutAbstract;
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
 use vulkano::framebuffer::{FramebufferAbstract, RenderPassAbstract, Subpass};
-use vulkano::image::{Dimensions, StorageImage};
+use vulkano::image::{ImageDimensions, StorageImage};
 use vulkano::pipeline::vertex::SingleBufferDefinition;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::sampler::{Filter, MipmapMode, Sampler, SamplerAddressMode};
+use vulkano::{
+    buffer::{BufferUsage, CpuAccessibleBuffer},
+    image::view::ImageView,
+};
 
 use std::sync::Arc;
 
-use crate::shaders::{self, ScreenFragmentShader, ScreenVertexShader};
+use crate::shaders;
 
 #[derive(Clone, Debug, Default)]
 struct PresenterVertex {
@@ -56,6 +59,7 @@ impl PresenterBuilder {
         let vertex_buffer = CpuAccessibleBuffer::from_iter(
             self.device.clone(),
             BufferUsage::all(),
+            false,
             [
                 PresenterVertex {
                     position: [1.0, 1.0],
@@ -79,6 +83,7 @@ impl PresenterBuilder {
         let index_buffer = CpuAccessibleBuffer::from_iter(
             self.device.clone(),
             BufferUsage::index_buffer(),
+            false,
             [0u32, 1u32, 2u32, 2u32, 3u32, 0u32].iter().cloned(),
         )
         .unwrap();
@@ -90,9 +95,10 @@ impl PresenterBuilder {
         // The image that the compute shader will write from and the graphics pipeline will read from.
         let presented_image = StorageImage::new(
             self.device.clone(),
-            Dimensions::Dim2d {
+            ImageDimensions::Dim2d {
                 width: self.resolution.0,
                 height: self.resolution.1,
+                array_layers: 1,
             },
             Format::R8G8B8A8Unorm,
             Some(self.queue.family()),
@@ -117,7 +123,7 @@ impl PresenterBuilder {
         (presented_image, sampler)
     }
 
-    fn load_shaders(&self) -> (ScreenVertexShader, ScreenFragmentShader) {
+    fn load_shaders(&self) -> (shaders::screen_vs::Shader, shaders::screen_fs::Shader) {
         (
             shaders::load_screen_vertex_shader(self.device.clone()),
             shaders::load_screen_fragment_shader(self.device.clone()),
@@ -161,11 +167,16 @@ impl PresenterBuilder {
         );
 
         let graphics_descriptors: Arc<GenericDescriptorSet> = Arc::new(
-            PersistentDescriptorSet::start(graphics_pipeline.clone(), 0)
-                .add_sampled_image(presented_image.clone(), image_sampler.clone())
-                .unwrap()
-                .build()
-                .unwrap(),
+            PersistentDescriptorSet::start(
+                graphics_pipeline.descriptor_set_layout(0).unwrap().clone(),
+            )
+            .add_sampled_image(
+                ImageView::new(presented_image.clone()).unwrap(),
+                image_sampler.clone(),
+            )
+            .unwrap()
+            .build()
+            .unwrap(),
         );
 
         Presenter {
@@ -206,13 +217,17 @@ impl Presenter {
 
     pub fn add_present_commands(
         &self,
-        add_to: AutoCommandBufferBuilder,
+        mut add_to: AutoCommandBufferBuilder,
         state: &DynamicState,
         output: Arc<dyn FramebufferAbstract + Send + Sync>,
     ) -> AutoCommandBufferBuilder {
         let clear_values = vec![[1.0, 0.0, 1.0, 1.0].into()];
         add_to
-            .begin_render_pass(output, false, clear_values)
+            .begin_render_pass(
+                output,
+                SubpassContents::Inline,
+                clear_values,
+            )
             .unwrap()
             .draw_indexed(
                 self.graphics_pipeline.clone(),
@@ -221,9 +236,11 @@ impl Presenter {
                 self.index_buffer.clone(),
                 self.graphics_descriptors.clone(),
                 (),
+                vec![],
             )
             .unwrap()
             .end_render_pass()
-            .unwrap()
+            .unwrap();
+        add_to
     }
 }

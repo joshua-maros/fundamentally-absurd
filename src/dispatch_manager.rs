@@ -1,4 +1,4 @@
-use vulkano::device::{Device, Queue};
+use vulkano::{device::{Device, Queue}, image::view::ImageView};
 use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract};
 use vulkano::image::SwapchainImage;
 use vulkano::pipeline::viewport::Viewport;
@@ -9,7 +9,7 @@ use vulkano::{
     swapchain::Surface,
 };
 
-use winit::Window;
+use winit::window::Window;
 
 use super::presenter::Presenter;
 
@@ -35,7 +35,7 @@ fn window_size_dependent_setup(
         .map(|image| {
             Arc::new(
                 Framebuffer::start(render_pass.clone())
-                    .add(image.clone())
+                    .add(ImageView::new(image.clone()).unwrap())
                     .unwrap()
                     .build()
                     .unwrap(),
@@ -71,6 +71,7 @@ impl DispatchManager {
             line_width: None,
             viewports: None,
             scissors: None,
+            ..Default::default()
         };
 
         let framebuffers = window_size_dependent_setup(
@@ -98,17 +99,11 @@ impl DispatchManager {
     {
         let window = self.surface.window();
         if self.recreate_swapchain {
-            let dimensions = if let Some(dimensions) = window.get_inner_size() {
-                let dimensions: (u32, u32) = dimensions
-                    .to_physical(window.get_hidpi_factor())
-                    .into();
-                [dimensions.0, dimensions.1]
-            } else {
-                return false;
-            };
+            let size = window.inner_size();
+            let dimensions = [size.width, size.height];
 
             let (new_swapchain, new_images) =
-                match self.swapchain.recreate_with_dimension(dimensions) {
+                match self.swapchain.recreate_with_dimensions(dimensions) {
                     Ok(r) => r,
                     // This error tends to happen when the user is manually resizing the window.
                     // Simply restarting the loop is the easiest way to fix this issue.
@@ -126,7 +121,7 @@ impl DispatchManager {
             self.recreate_swapchain = false;
         }
 
-        let (image_num, acquire_future) =
+        let (image_num, _, acquire_future) =
             match swapchain::acquire_next_image(self.swapchain.clone(), None) {
                 Ok(r) => r,
                 Err(AcquireError::OutOfDate) => {

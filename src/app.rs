@@ -1,12 +1,26 @@
-use crate::{dispatch_manager::DispatchManager, init, presenter::Presenter, renderer::Renderer};
+use winit::{
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+};
+
+use crate::{
+    dispatch_manager::DispatchManager,
+    init,
+    options::{Options, PARAMETER_SPACE, WORLD_SIZE},
+    presenter::Presenter,
+    renderer::Renderer,
+};
 use std::sync::Arc;
-use winit::{ElementState, Event, EventsLoop, KeyboardInput, VirtualKeyCode, WindowEvent};
+
+struct AppData {
+    options: Options,
+}
 
 pub struct App {
     dispatcher: DispatchManager,
     renderer: Renderer,
-    events_loop: EventsLoop,
-    coefficients: Vec<i16>,
+    events_loop: EventLoop<()>,
+    data: AppData,
 }
 
 impl App {
@@ -27,15 +41,16 @@ impl App {
             swapchain.format(),
         ));
 
-        let mut renderer = Renderer::new(
+        let renderer = Renderer::new(
             device.clone(),
             queue.clone(),
             presenter.get_presented_image(),
         );
-        let mut args: Vec<String> = std::env::args().collect();
-        args.remove(0);
-        let coefficients: Vec<_> = args.iter().map(|arg| arg.parse().unwrap()).collect();
-        renderer.set_parameters(&coefficients[..]);
+        let mut kernel_arguments = [0i16; PARAMETER_SPACE];
+        kernel_arguments[0] = 2;
+        for (index, value) in std::env::args().skip(1).enumerate() {
+            kernel_arguments[index] = value.parse().unwrap();
+        }
 
         let dispatcher = DispatchManager::new(
             device,
@@ -50,117 +65,175 @@ impl App {
             dispatcher,
             renderer,
             events_loop,
-            coefficients,
+            data: AppData {
+                options: Options {
+                    kernel_arguments,
+                    ..Default::default()
+                },
+            },
         }
     }
 
-    pub fn start(&mut self) {
+    pub fn start(self) -> ! {
         let Self {
-            dispatcher,
-            renderer,
-            coefficients,
+            mut renderer,
+            mut dispatcher,
+            mut data,
             events_loop,
+            ..
         } = self;
-        loop {
-            let success = dispatcher
-                .create_and_submit_commands(|builder| renderer.add_render_commands(builder));
-            if !success {
-                continue;
-            }
 
-            let mut done = false;
-            events_loop.poll_events(|ev| match ev {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
-                    ..
-                } => done = true,
-                Event::WindowEvent {
-                    event: WindowEvent::CursorMoved { position, .. },
-                    ..
-                } => {
-                    renderer.set_offset(position.x as f32 / 512.0, 1.0 - position.y as f32 / 512.0);
-                }
-                Event::WindowEvent {
-                    event:
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(code),
-                                    ..
-                                },
-                            ..
-                        },
-                    ..
-                } => match code {
-                    VirtualKeyCode::Escape => done = true,
-                    VirtualKeyCode::Equals => renderer.offset_zoom(true),
-                    VirtualKeyCode::Subtract => renderer.offset_zoom(false),
-                    VirtualKeyCode::Comma => renderer.offset_rate(false),
-                    VirtualKeyCode::Period => renderer.offset_rate(true),
-                    VirtualKeyCode::R => renderer.reset_world(),
-                    VirtualKeyCode::F => {
-                        renderer.skip_frames(1);
-                        renderer.pause();
-                    }
-                    VirtualKeyCode::Space => {
-                        let divisor = coefficients[0];
-                        coefficients[divisor as usize] += 1;
-                        for index in (1..divisor as usize).rev() {
-                            if coefficients[index + 1] >= divisor {
-                                coefficients[index + 1] = 0;
-                                coefficients[index] += 1;
-                            }
-                        }
-                        for parameter in &*coefficients {
-                            print!("{} ", parameter);
-                        }
-                        println!("");
-                        renderer.set_parameters(&coefficients);
-                        renderer.reset_world();
-                    }
-                    VirtualKeyCode::Back => {
-                        let divisor = coefficients[0];
-                        coefficients[divisor as usize] -= 1;
-                        for index in (1..divisor as usize).rev() {
-                            if coefficients[index + 1] == -1 {
-                                coefficients[index + 1] = divisor - 1;
-                                coefficients[index] -= 1;
-                            }
-                        }
-                        for parameter in &*coefficients {
-                            print!("{} ", parameter);
-                        }
-                        println!("");
-                        renderer.set_parameters(&coefficients);
-                        renderer.reset_world();
-                    }
-                    _ => (),
-                },
-                Event::WindowEvent {
-                    event:
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Released,
-                                    virtual_keycode: Some(code),
-                                    ..
-                                },
-                            ..
-                        },
-                    ..
-                } => match code {
-                    _ => (),
-                },
-                Event::WindowEvent {
-                    event: WindowEvent::Resized(_),
-                    ..
-                } => dispatcher.invalidate_swapchain(),
+        events_loop.run(move |ev, _, flow| match ev {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *flow = ControlFlow::Exit,
+            Event::WindowEvent {
+                event: WindowEvent::CursorMoved { position, .. },
+                ..
+            } => {
+                data.set_offset(position.x as f32 / 512.0, position.y as f32 / 512.0);
+            }
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(code),
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => match code {
+                VirtualKeyCode::Escape => *flow = ControlFlow::Exit,
+                code => data.on_key(code),
+            },
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Released,
+                                virtual_keycode: Some(code),
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => match code {
                 _ => (),
-            });
-            if done {
-                return;
+            },
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => dispatcher.invalidate_swapchain(),
+            Event::MainEventsCleared => {
+                let success = renderer.render(&mut dispatcher, &data.options);
+                data.after_frame();
+                if !success {
+                    return;
+                }
+            }
+            _ => (),
+        });
+    }
+}
+
+impl AppData {
+    fn set_offset(&mut self, x: f32, y: f32) {
+        self.options.offset[0] = (x * WORLD_SIZE as f32) as i32;
+        self.options.offset[1] = (y * WORLD_SIZE as f32) as i32;
+    }
+
+    fn offset_zoom(&mut self, increment: bool) {
+        if increment {
+            self.options.zoom += 1;
+        } else {
+            self.options.zoom -= 1;
+        }
+        if self.options.zoom > 4 {
+            self.options.zoom = 4;
+        } else if self.options.zoom < 1 {
+            self.options.zoom = 1;
+        }
+        println!("{}x zoom", self.options.zoom);
+    }
+
+    fn offset_rate(&mut self, increase: bool) {
+        if increase {
+            if self.options.rate == 0 {
+                self.options.rate = 1;
+            } else {
+                self.options.rate *= 2;
+            }
+        } else {
+            if self.options.rate > 1 {
+                self.options.rate /= 2;
+            } else {
+                self.options.rate = 0;
             }
         }
+        println!("{} generations per frame", self.options.rate);
+    }
+
+    fn pause(&mut self) {
+        self.options.rate = 0;
+    }
+
+    fn skip_frames(&mut self, num_frames: u32) {
+        self.options.skip += num_frames;
+    }
+
+    fn reset_world(&mut self) {
+        self.options.reset = true;
+        self.skip_frames(1);
+        println!("reset world");
+    }
+
+    fn offset_arguments(&mut self, increase: bool) {
+        let divisor = self.options.kernel_arguments[0];
+        if increase {
+            self.options.kernel_arguments[divisor as usize] += 1;
+        } else {
+            self.options.kernel_arguments[divisor as usize] -= 1;
+        }
+        for index in (1..divisor as usize).rev() {
+            if self.options.kernel_arguments[index + 1] >= divisor {
+                self.options.kernel_arguments[index + 1] = 0;
+                self.options.kernel_arguments[index] += 1;
+            } else if self.options.kernel_arguments[index + 1] == -1 {
+                self.options.kernel_arguments[index + 1] = divisor - 1;
+                self.options.kernel_arguments[index] -= 1;
+            }
+        }
+        for argument in &self.options.kernel_arguments {
+            print!("{} ", argument);
+        }
+        println!("");
+        self.reset_world();
+    }
+
+    fn on_key(&mut self, code: VirtualKeyCode) {
+        match code {
+            VirtualKeyCode::Equals => self.offset_zoom(true),
+            VirtualKeyCode::Minus => self.offset_zoom(false),
+            VirtualKeyCode::Comma => self.offset_rate(false),
+            VirtualKeyCode::Period => self.offset_rate(true),
+            VirtualKeyCode::R => self.reset_world(),
+            VirtualKeyCode::F => {
+                self.skip_frames(1);
+                self.pause();
+            }
+            VirtualKeyCode::Space => self.offset_arguments(true),
+            VirtualKeyCode::Back => self.offset_arguments(false),
+            _ => (),
+        }
+    }
+
+    fn after_frame(&mut self) {
+        self.options.reset = false;
+        self.options.skip = 0;
     }
 }

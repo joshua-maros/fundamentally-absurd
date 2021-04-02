@@ -11,68 +11,57 @@ fn _watchdog() {
     let _source = include_bytes!("../shaders/simulate.comp");
 }
 
-mod finalize {
+pub mod finalize {
     vulkano_shaders::shader! {
         ty: "compute",
         path: "shaders/finalize.comp"
     }
 }
-pub use finalize::ty::PushData as FinalizePushData;
-pub use finalize::Layout as FinalizeShaderLayout;
-pub use finalize::Shader as FinalizeShader;
 
-mod randomize {
+pub mod randomize {
     vulkano_shaders::shader! {
         ty: "compute",
         path: "shaders/randomize.comp"
     }
 }
-pub use randomize::Layout as RandomizeShaderLayout;
-pub use randomize::Shader as RandomizeShader;
 
-mod screen_vs {
+pub mod screen_vs {
     vulkano_shaders::shader! {
         ty: "vertex",
         path: "shaders/screen.vert"
     }
 }
-pub use screen_fs::Layout as ScreenFragmentShaderLayout;
-pub use screen_fs::Shader as ScreenFragmentShader;
 
-mod screen_fs {
+pub mod screen_fs {
     vulkano_shaders::shader! {
         ty: "fragment",
         path: "shaders/screen.frag"
     }
 }
-pub use screen_vs::Layout as ScreenVertexShaderLayout;
-pub use screen_vs::Shader as ScreenVertexShader;
 
-mod simulate {
+pub mod simulate {
     vulkano_shaders::shader! {
         ty: "compute",
         path: "shaders/simulate.comp"
     }
 }
-pub use simulate::Layout as SimulateShaderLayout;
-pub use simulate::Shader as SimulateShader;
 
-pub fn load_finalize_shader(device: Arc<Device>) -> FinalizeShader {
+pub fn load_finalize_shader(device: Arc<Device>) -> finalize::Shader {
     finalize::Shader::load(device).unwrap()
 }
 
-pub fn load_randomize_shader(device: Arc<Device>) -> RandomizeShader {
+pub fn load_randomize_shader(device: Arc<Device>) -> randomize::Shader {
     randomize::Shader::load(device).unwrap()
 }
 
-pub fn load_screen_vertex_shader(device: Arc<Device>) -> ScreenVertexShader {
+pub fn load_screen_vertex_shader(device: Arc<Device>) -> screen_vs::Shader {
     screen_vs::Shader::load(device).unwrap()
 }
 
-pub fn load_screen_fragment_shader(device: Arc<Device>) -> ScreenFragmentShader {
+pub fn load_screen_fragment_shader(device: Arc<Device>) -> screen_fs::Shader {
     screen_fs::Shader::load(device).unwrap()
 }
 
-pub fn load_simulate_shader(device: Arc<Device>) -> SimulateShader {
+pub fn load_simulate_shader(device: Arc<Device>) -> simulate::Shader {
     simulate::Shader::load(device).unwrap()
 }

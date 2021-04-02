@@ -1,11 +1,21 @@
-use vulkano::device::{Device, DeviceExtensions, Queue};
-use vulkano::image::SwapchainImage;
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::swapchain::{PresentMode, Surface, SurfaceTransform, Swapchain};
+use vulkano::{
+    device::{Device, DeviceExtensions, Queue},
+    swapchain::ColorSpace,
+};
+use vulkano::{
+    format::Format,
+    image::{ImageUsage, SwapchainImage},
+};
 
 use vulkano_win::VkSurfaceBuild;
 
-use winit::{EventsLoop, Window, WindowBuilder};
+use winit::{
+    dpi::{LogicalSize, PhysicalSize},
+    event_loop::EventLoop,
+    window::{Window, WindowBuilder},
+};
 
 use std::sync::Arc;
 
@@ -13,7 +23,7 @@ pub struct InitResult {
     pub device: Arc<Device>,
     pub queue: Arc<Queue>,
     pub surface: Arc<Surface<Window>>,
-    pub events_loop: EventsLoop,
+    pub events_loop: EventLoop<()>,
     pub swapchain: Arc<Swapchain<Window>>,
     pub swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
 }
@@ -34,9 +44,9 @@ pub fn init() -> InitResult {
     );
 
     // Setup the window.
-    let events_loop = EventsLoop::new();
+    let events_loop = EventLoop::new();
     let surface = WindowBuilder::new()
-        .with_dimensions((512, 512).into())
+        .with_inner_size(PhysicalSize::new(512, 512))
         .build_vk_surface(&events_loop, instance.clone())
         .unwrap();
     let window = surface.window();
@@ -71,21 +81,16 @@ pub fn init() -> InitResult {
     // Make a swapchain.
     let (swapchain, swapchain_images) = {
         let caps = surface.capabilities(physical).unwrap();
-        let usage = caps.supported_usage_flags;
+        let usage = ImageUsage::color_attachment();
 
         // The alpha mode indicates how the alpha value of the final image will behave. For example
         // you can choose whether the window will be opaque or transparent.
         let alpha = caps.supported_composite_alpha.iter().next().unwrap();
         // Choosing the internal format that the images will have.
         let format = caps.supported_formats[0].0;
-        let initial_dimensions = if let Some(dimensions) = window.get_inner_size() {
-            // convert to physical pixels
-            let dimensions: (u32, u32) = dimensions.to_physical(window.get_hidpi_factor()).into();
-            [dimensions.0, dimensions.1]
-        } else {
-            // The window no longer exists so exit the application.
-            unimplemented!()
-        };
+        let dimensions = window.inner_size();
+        let dimensions = [dimensions.width, dimensions.height];
+        let initial_dimensions = dimensions;
 
         Swapchain::new(
             device.clone(),
@@ -99,8 +104,9 @@ pub fn init() -> InitResult {
             SurfaceTransform::Identity,
             alpha,
             PresentMode::Fifo,
+            vulkano::swapchain::FullscreenExclusive::Disallowed,
             true,
-            None,
+            ColorSpace::SrgbNonLinear,
         )
         .unwrap()
     };
