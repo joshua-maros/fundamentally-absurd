@@ -9,16 +9,17 @@ use crate::{
     options::{Options, PARAMETER_SPACE, WORLD_SIZE},
     presenter::Presenter,
     renderer::Renderer,
+    stats::{AutomaticJudgement, Judge, Stats},
 };
 use std::sync::Arc;
 
 struct AppData {
     options: Options,
+    renderer: Renderer,
+    dispatcher: DispatchManager,
 }
 
 pub struct App {
-    dispatcher: DispatchManager,
-    renderer: Renderer,
     events_loop: EventLoop<()>,
     data: AppData,
 }
@@ -37,7 +38,7 @@ impl App {
         let presenter = Arc::new(Presenter::new(
             device.clone(),
             queue.clone(),
-            (512, 512),
+            (1024, 1024),
             swapchain.format(),
         ));
 
@@ -62,22 +63,20 @@ impl App {
         );
 
         Self {
-            dispatcher,
-            renderer,
             events_loop,
             data: AppData {
                 options: Options {
                     kernel_arguments,
                     ..Default::default()
                 },
+                renderer,
+                dispatcher,
             },
         }
     }
 
     pub fn start(self) -> ! {
         let Self {
-            mut renderer,
-            mut dispatcher,
             mut data,
             events_loop,
             ..
@@ -92,7 +91,7 @@ impl App {
                 event: WindowEvent::CursorMoved { position, .. },
                 ..
             } => {
-                data.set_offset(position.x as f32 / 512.0, position.y as f32 / 512.0);
+                data.set_offset(position.x as f32 / 1024.0, 1.0 - position.y as f32 / 1024.0);
             }
             Event::WindowEvent {
                 event:
@@ -128,9 +127,9 @@ impl App {
             Event::WindowEvent {
                 event: WindowEvent::Resized(_),
                 ..
-            } => dispatcher.invalidate_swapchain(),
+            } => data.dispatcher.invalidate_swapchain(),
             Event::MainEventsCleared => {
-                let success = renderer.render(&mut dispatcher, &data.options);
+                let success = data.render();
                 data.after_frame();
                 if !success {
                     return;
@@ -142,6 +141,10 @@ impl App {
 }
 
 impl AppData {
+    fn render(&mut self) -> bool {
+        self.renderer.render(&mut self.dispatcher, &self.options)
+    }
+
     fn set_offset(&mut self, x: f32, y: f32) {
         self.options.offset[0] = (x * WORLD_SIZE as f32) as i32;
         self.options.offset[1] = (y * WORLD_SIZE as f32) as i32;
@@ -208,11 +211,44 @@ impl AppData {
                 self.options.kernel_arguments[index] -= 1;
             }
         }
-        for argument in &self.options.kernel_arguments {
+        for argument in &self.options.kernel_arguments[0..1 + divisor as usize] {
             print!("{} ", argument);
         }
         println!("");
         self.reset_world();
+    }
+
+    fn compute_judgement(&mut self) -> AutomaticJudgement {
+        let test_options = Options {
+            reset: true,
+            rate: 0,
+            skip: 1,
+            ..self.options.clone()
+        };
+        self.renderer.render(&mut self.dispatcher, &test_options);
+        let mut judge = Judge::new(Stats::of(&self.renderer));
+        let test_options = Options {
+            reset: false,
+            skip: 20,
+            ..test_options
+        };
+        for _ in 0..4 {
+            self.renderer.render(&mut self.dispatcher, &test_options);
+            judge.push_snapshot(Stats::of(&self.renderer));
+            let judgement = judge.judgement();
+            if !judgement.is_unknown() {
+                println!("{:?}", judgement);
+                return judgement;
+            }
+        }
+        AutomaticJudgement::Unknown
+    }
+
+    fn skip_uninteresting(&mut self) {
+        self.offset_arguments(true);
+        while !self.compute_judgement().is_interesting() {
+            self.offset_arguments(true);
+        }
     }
 
     fn on_key(&mut self, code: VirtualKeyCode) {
@@ -226,7 +262,7 @@ impl AppData {
                 self.skip_frames(1);
                 self.pause();
             }
-            VirtualKeyCode::Space => self.offset_arguments(true),
+            VirtualKeyCode::Space => self.skip_uninteresting(),
             VirtualKeyCode::Back => self.offset_arguments(false),
             _ => (),
         }

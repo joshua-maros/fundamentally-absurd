@@ -46,7 +46,7 @@ pub fn init() -> InitResult {
     // Setup the window.
     let events_loop = EventLoop::new();
     let surface = WindowBuilder::new()
-        .with_inner_size(PhysicalSize::new(512, 512))
+        .with_inner_size(PhysicalSize::new(1024, 1024))
         .build_vk_surface(&events_loop, instance.clone())
         .unwrap();
     let window = surface.window();
