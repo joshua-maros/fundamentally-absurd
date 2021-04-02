@@ -3,14 +3,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
 };
 
-use crate::{
-    dispatch_manager::DispatchManager,
-    init,
-    options::{Options, PARAMETER_SPACE, WORLD_SIZE},
-    presenter::Presenter,
-    renderer::Renderer,
-    stats::{AutomaticJudgement, Judge, Stats},
-};
+use crate::{dispatch_manager::DispatchManager, init, options::{Options, PARAMETER_SPACE, WORLD_SIZE}, presenter::Presenter, renderer::Renderer, stats::{AutomaticJudgement, Judge, Scorer, Stats}};
 use std::sync::Arc;
 
 struct AppData {
@@ -240,6 +233,22 @@ impl AppData {
         AutomaticJudgement::Unknown
     }
 
+    fn compute_pattern_frequencies(&mut self) -> Vec<f32> {
+        let test_options = Options {
+            reset: false,
+            rate: 0,
+            skip: 1,
+            display: false,
+            ..self.options.clone()
+        };
+        let mut scorer = Scorer::new();
+        for _ in 0..100 {
+            self.renderer.render(&mut self.dispatcher, &test_options);
+            scorer.add_snapshot(&self.renderer);
+        }
+        scorer.find_pattern_frequencies()
+    }
+
     fn skip_uninteresting(&mut self) {
         self.offset_arguments(true);
         while !self.compute_judgement().is_interesting() {
@@ -250,6 +259,7 @@ impl AppData {
             print!("{} ", argument);
         }
         println!("");
+        println!("{:?}", self.compute_pattern_frequencies());
     }
 
     fn on_key(&mut self, code: VirtualKeyCode) {
