@@ -47,12 +47,11 @@ impl Judge {
             return Unknown;
         }
         let d0 = self.snapshots[0].population_density;
-        if ns > 2
-            && self
-                .snapshots
-                .iter()
-                .skip(1)
-                .all(|s| s.population_density > d0)
+        if self
+            .snapshots
+            .iter()
+            .skip(1)
+            .all(|s| s.population_density > d0)
         {
             return Chaotic;
         }

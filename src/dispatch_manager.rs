@@ -1,5 +1,4 @@
-use vulkano::{device::{Device, Queue}, image::view::ImageView};
-use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract};
+use vulkano::{command_buffer::CommandBuffer, framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract}};
 use vulkano::image::SwapchainImage;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::swapchain::{self, AcquireError, Swapchain, SwapchainCreationError};
@@ -7,6 +6,10 @@ use vulkano::sync::{FlushError, GpuFuture};
 use vulkano::{
     command_buffer::{AutoCommandBufferBuilder, DynamicState},
     swapchain::Surface,
+};
+use vulkano::{
+    device::{Device, Queue},
+    image::view::ImageView,
 };
 
 use winit::window::Window;
@@ -93,6 +96,33 @@ impl DispatchManager {
         }
     }
 
+    pub fn do_commands_without_presenting<F>(&mut self, creation_func: F) -> bool 
+    where
+        F: FnOnce(AutoCommandBufferBuilder) -> AutoCommandBufferBuilder,
+    {
+        let builder = AutoCommandBufferBuilder::primary_one_time_submit(
+            self.device.clone(),
+            self.queue.family(),
+        )
+        .unwrap();
+        let buffer = creation_func(builder);
+        let buffer = buffer.build().unwrap();
+        let future = buffer.execute(self.queue.clone()).unwrap();
+        let future = future.then_signal_fence_and_flush();
+        match future {
+            Ok(future) => {
+                future.wait(None).unwrap();
+            }
+            Err(FlushError::OutOfDate) => {
+                self.recreate_swapchain = true;
+            }
+            Err(e) => {
+                println!("{:?}", e);
+            }
+        }
+        true
+    }
+
     pub fn create_and_submit_commands<F>(&mut self, creation_func: F) -> bool
     where
         F: FnOnce(AutoCommandBufferBuilder) -> AutoCommandBufferBuilder,
@@ -136,8 +166,8 @@ impl DispatchManager {
             self.queue.family(),
         )
         .unwrap();
-        let builder = creation_func(builder);
-        let builder = self.presenter.add_present_commands(
+        let mut builder = creation_func(builder);
+        builder = self.presenter.add_present_commands(
             builder,
             &self.dynamic_state,
             self.framebuffers[image_num].clone(),

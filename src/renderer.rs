@@ -211,7 +211,14 @@ impl Renderer {
     }
 
     pub fn render(&mut self, dispatcher: &mut DispatchManager, options: &Options) -> bool {
-        dispatcher.create_and_submit_commands(|builder| self.add_render_commands(builder, options))
+        if options.display {
+            dispatcher
+                .create_and_submit_commands(|builder| self.add_render_commands(builder, options))
+        } else {
+            dispatcher.do_commands_without_presenting(|builder| {
+                self.add_render_commands(builder, options)
+            })
+        }
     }
 
     fn add_render_commands(
@@ -265,28 +272,18 @@ impl Renderer {
             offset: options.offset,
             zoom: options.zoom,
         };
+        if options.display {
+            add_to
+                .dispatch(
+                    [self.target_width / 8, self.target_height / 8, 1],
+                    self.finalize_pipeline.clone(),
+                    self.finalize_descriptors.clone(),
+                    push_data,
+                    vec![],
+                )
+                .unwrap();
+        }
         add_to
-            .copy_image(
-                self.world_buffer_target.clone(),
-                [0, 0, 0],
-                0,
-                0,
-                self.world_buffer_source.clone(),
-                [0, 0, 0],
-                0,
-                0,
-                [WORLD_SIZE, WORLD_SIZE, 1],
-                1,
-            )
-            .unwrap()
-            .dispatch(
-                [self.target_width / 8, self.target_height / 8, 1],
-                self.finalize_pipeline.clone(),
-                self.finalize_descriptors.clone(),
-                push_data,
-                vec![],
-            )
-            .unwrap()
             .copy_image_to_buffer(
                 self.world_buffer_target.clone(),
                 self.cpu_world_buffer.clone(),

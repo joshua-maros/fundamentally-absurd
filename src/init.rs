@@ -1,18 +1,15 @@
+use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::{Instance, PhysicalDevice};
 use vulkano::swapchain::{PresentMode, Surface, SurfaceTransform, Swapchain};
 use vulkano::{
     device::{Device, DeviceExtensions, Queue},
     swapchain::ColorSpace,
 };
-use vulkano::{
-    format::Format,
-    image::{ImageUsage, SwapchainImage},
-};
 
 use vulkano_win::VkSurfaceBuild;
 
 use winit::{
-    dpi::{LogicalSize, PhysicalSize},
+    dpi::PhysicalSize,
     event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };

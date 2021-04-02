@@ -9,6 +9,7 @@ pub struct Options {
     pub rate: u32,
     pub skip: u32,
     pub reset: bool,
+    pub display: bool,
 }
 
 impl Default for Options {
@@ -21,6 +22,7 @@ impl Default for Options {
             rate: 1,
             skip: 0,
             reset: true,
+            display: true,
         }
     }
 }

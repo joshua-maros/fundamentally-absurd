@@ -192,7 +192,6 @@ impl AppData {
     fn reset_world(&mut self) {
         self.options.reset = true;
         self.skip_frames(1);
-        println!("reset world");
     }
 
     fn offset_arguments(&mut self, increase: bool) {
@@ -211,10 +210,6 @@ impl AppData {
                 self.options.kernel_arguments[index] -= 1;
             }
         }
-        for argument in &self.options.kernel_arguments[0..1 + divisor as usize] {
-            print!("{} ", argument);
-        }
-        println!("");
         self.reset_world();
     }
 
@@ -223,6 +218,7 @@ impl AppData {
             reset: true,
             rate: 0,
             skip: 1,
+            display: false,
             ..self.options.clone()
         };
         self.renderer.render(&mut self.dispatcher, &test_options);
@@ -249,6 +245,11 @@ impl AppData {
         while !self.compute_judgement().is_interesting() {
             self.offset_arguments(true);
         }
+        let divisor = self.options.kernel_arguments[0];
+        for argument in &self.options.kernel_arguments[0..1 + divisor as usize] {
+            print!("{} ", argument);
+        }
+        println!("");
     }
 
     fn on_key(&mut self, code: VirtualKeyCode) {
