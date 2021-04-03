@@ -233,7 +233,7 @@ impl AppData {
         AutomaticJudgement::Unknown
     }
 
-    fn compute_pattern_frequencies(&mut self) -> Vec<f32> {
+    fn compute_score(&mut self) -> f32 {
         let test_options = Options {
             reset: false,
             rate: 0,
@@ -246,7 +246,10 @@ impl AppData {
             self.renderer.render(&mut self.dispatcher, &test_options);
             scorer.add_snapshot(&self.renderer);
         }
-        scorer.find_pattern_frequencies()
+        let densities = scorer.find_pattern_densities();
+        let score = scorer.compute_score(&densities[..]);
+        scorer.create_gif(&densities[..], "/tmp/test.gif");
+        score
     }
 
     fn skip_uninteresting(&mut self) {
@@ -259,7 +262,7 @@ impl AppData {
             print!("{} ", argument);
         }
         println!("");
-        println!("{:?}", self.compute_pattern_frequencies());
+        println!("{:?}", self.compute_score());
     }
 
     fn on_key(&mut self, code: VirtualKeyCode) {
