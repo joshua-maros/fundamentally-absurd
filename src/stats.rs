@@ -335,7 +335,7 @@ impl DisplayFrame {
     fn into_gif_frame(self) -> Frame<'static> {
         let mut res =
             Frame::from_indexed_pixels(self.width as _, self.width as _, &self.data[..], None);
-        // res.delay = 10;
+        res.delay = 33;
         res
     }
 }

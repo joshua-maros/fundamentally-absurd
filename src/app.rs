@@ -3,7 +3,14 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
 };
 
-use crate::{dispatch_manager::DispatchManager, init, options::{Options, PARAMETER_SPACE, WORLD_SIZE}, presenter::Presenter, renderer::Renderer, stats::{AutomaticJudgement, Judge, Scorer, Stats}};
+use crate::{
+    dispatch_manager::DispatchManager,
+    init,
+    options::{Options, PARAMETER_SPACE, WORLD_SIZE},
+    presenter::Presenter,
+    renderer::Renderer,
+    stats::{AutomaticJudgement, Judge, Scorer, Stats},
+};
 use std::sync::Arc;
 
 struct AppData {
@@ -248,7 +255,16 @@ impl AppData {
         }
         let densities = scorer.find_pattern_densities();
         let score = scorer.compute_score(&densities[..]);
-        scorer.create_gif(&densities[..], "/tmp/test.gif");
+        let params = &self.options.kernel_arguments[..];
+        let last_zero = params.len() - params.iter().rev().position(|a| *a != 0).unwrap();
+        let params = (&params[..last_zero])
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<_>>()
+            .join("-");
+        let filename = format!("captures/8/SCORE {:08.2} PARAMS {}.gif", score, params);
+        println!("{}", filename);
+        scorer.create_gif(&densities[..], &filename[..]);
         score
     }
 
@@ -277,6 +293,11 @@ impl AppData {
                 self.pause();
             }
             VirtualKeyCode::Space => self.skip_uninteresting(),
+            VirtualKeyCode::Return => {
+                while self.options.kernel_arguments[1] == 0 {
+                    self.skip_uninteresting()
+                }
+            }
             VirtualKeyCode::Back => self.offset_arguments(false),
             _ => (),
         }
