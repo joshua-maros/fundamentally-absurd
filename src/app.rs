@@ -262,7 +262,7 @@ impl AppData {
             .map(|e| e.to_string())
             .collect::<Vec<_>>()
             .join("-");
-        let filename = format!("captures/8/SCORE {:08.2} PARAMS {}.gif", score, params);
+        let filename = format!("captures/9/SCORE {:08.2} PARAMS {}.gif", score, params);
         println!("{}", filename);
         scorer.create_gif(&densities[..], &filename[..]);
         score
